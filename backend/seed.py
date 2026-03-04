@@ -23,6 +23,7 @@ from app.models.plaza import PlazaPost, PlazaComment  # noqa: F401
 from app.models.activity_log import AgentActivityLog  # noqa: F401
 from app.models.org import OrgDepartment, OrgMember, AgentRelationship, AgentAgentRelationship  # noqa: F401
 from app.models.system_settings import SystemSetting  # noqa: F401
+from app.models.invitation_code import InvitationCode  # noqa: F401
 
 
 async def seed():
