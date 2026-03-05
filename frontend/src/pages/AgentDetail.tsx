@@ -2200,21 +2200,26 @@ export default function AgentDetail() {
                                                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>App ID: <code>{channelConfig.app_id}</code></div>
                                                 <div style={{ background: 'var(--bg-secondary)', borderRadius: '6px', padding: '10px', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
                                                     <div style={{ color: 'var(--text-tertiary)', marginBottom: '6px' }}>Webhook URL</div>
-                                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                        <div style={{ wordBreak: 'break-all', color: 'var(--accent-primary)', flex: 1, lineHeight: 1.5 }}>
+                                                    <div style={{ lineHeight: 1.6, wordBreak: 'break-all' }}>
+                                                        <span style={{ color: 'var(--accent-primary)' }}>
                                                             {webhookData?.webhook_url || `${window.location.origin}/api/channel/feishu/${id}/webhook`}
-                                                        </div>
+                                                        </span>
                                                         <button
                                                             title="Copy"
-                                                            style={{ flexShrink: 0, padding: '2px 6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', marginTop: '1px' }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '6px', padding: '1px 4px', cursor: 'pointer', borderRadius: '3px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-secondary)', verticalAlign: 'middle', lineHeight: 1 }}
                                                             onClick={() => {
                                                                 const url = webhookData?.webhook_url || `${window.location.origin}/api/channel/feishu/${id}/webhook`;
                                                                 navigator.clipboard.writeText(url).then(() => {
                                                                     const btn = document.activeElement as HTMLButtonElement;
-                                                                    if (btn) { const orig = btn.textContent; btn.textContent = '✅'; setTimeout(() => { btn.textContent = orig; }, 1500); }
+                                                                    if (btn) { const origHtml = btn.innerHTML; btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 2 5 10 2 7"/></svg>'; setTimeout(() => { btn.innerHTML = origHtml; }, 1500); }
                                                                 });
                                                             }}
-                                                        >📋</button>
+                                                        >
+                                                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                                <rect x="4" y="4" width="9" height="11" rx="1.5" />
+                                                                <path d="M3 11H2a1 1 0 01-1-1V2a1 1 0 011-1h8a1 1 0 011 1v1" />
+                                                            </svg>
+                                                        </button>
                                                     </div>
                                                 </div>
                                                 <button className="btn btn-danger" style={{ fontSize: '12px', padding: '4px 12px' }} onClick={async () => { await channelApi.delete(id!); queryClient.invalidateQueries({ queryKey: ['channel', id] }); }}>Disconnect</button>
