@@ -665,20 +665,13 @@ export default function AgentDetail() {
         return msg;
     };
 
-    useEffect(() => {
-        if (!id || !token || activeTab !== 'chat') return;
-        fetch(`/api/chat/${id}/history`, { headers: { Authorization: `Bearer ${token}` } })
-            .then(r => r.json())
-            .then((h: ChatMsg[]) => { if (h.length > 0) setChatMessages(h.map(parseChatMsg)); })
-            .catch(() => { });
-    }, [id, token, activeTab]);
 
     useEffect(() => {
         if (!id || !token || activeTab !== 'chat') return;
-        // Load sessions when entering chat tab
+        // Load sessions when entering chat tab; auto-select first and load its history
         fetchMySessions().then((data: any) => {
             setSessionsLoading(false);
-            if (data && data.length > 0 && !activeSession) setActiveSession(data[0]);
+            if (data && data.length > 0 && !activeSession) selectSession(data[0]);
         });
     }, [id, activeTab]);
 
