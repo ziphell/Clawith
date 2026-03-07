@@ -944,38 +944,115 @@ async def _execute_mcp_tool(tool_name: str, arguments: dict, agent_id=None) -> s
         # Merge global config + agent override
         merged_config = {**(tool.config or {}), **agent_config}
 
-        # Rebuild MCP URL with merged config
         mcp_url = tool.mcp_server_url
-        if merged_config and "server.smithery.ai" in mcp_url:
-            # Smithery Connect: inject config as base64-encoded query param
-            import json, base64, urllib.parse
-            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-            parsed = urlparse(mcp_url)
-            qs = parse_qs(parsed.query, keep_blank_values=True)
-            config_b64 = base64.b64encode(json.dumps(merged_config).encode()).decode()
-            qs["config"] = [urllib.parse.quote(config_b64)]
-            new_query = urlencode({k: v[0] for k, v in qs.items()})
-            mcp_url = urlunparse(parsed._replace(query=new_query))
-        elif merged_config and "apiKey" in mcp_url:
-            # Generic MCP URL with apiKey — try injecting config
-            import json, base64, urllib.parse
-            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-            parsed = urlparse(mcp_url)
-            qs = parse_qs(parsed.query, keep_blank_values=True)
-            config_b64 = base64.b64encode(json.dumps(merged_config).encode()).decode()
-            qs["config"] = [urllib.parse.quote(config_b64)]
-            new_query = urlencode({k: v[0] for k, v in qs.items()})
-            mcp_url = urlunparse(parsed._replace(query=new_query))
-
-        client = MCPClient(mcp_url)
         mcp_name = tool.mcp_tool_name or tool_name
+
+        # Detect Smithery-hosted MCP servers (*.run.tools URLs)
+        # These need Smithery Connect to route tool calls
+        if ".run.tools" in mcp_url and merged_config:
+            return await _execute_via_smithery_connect(mcp_url, mcp_name, arguments, merged_config)
+
+        # Direct MCP call for non-Smithery servers
+        client = MCPClient(mcp_url)
         return await client.call_tool(mcp_name, arguments)
 
     except Exception as e:
         return f"❌ MCP tool execution error: {str(e)[:200]}"
 
 
+async def _execute_via_smithery_connect(mcp_url: str, tool_name: str, arguments: dict, config: dict) -> str:
+    """Execute an MCP tool via Smithery Connect API.
 
+    Flow:
+    1. Create/reuse a connection: POST https://api.smithery.ai/connect/{namespace}
+    2. Call the tool: POST https://api.smithery.ai/connect/{namespace}/{connectionId}/mcp
+    """
+    import httpx
+    import hashlib
+
+    # Get Smithery API key
+    from app.services.resource_discovery import _get_smithery_api_key
+    api_key = await _get_smithery_api_key()
+    if not api_key:
+        return "❌ Smithery API key not configured. Please set it in Enterprise Settings → Tools."
+
+    namespace = "clawith"
+    # Use a stable connection ID based on mcp_url + config hash
+    config_hash = hashlib.md5(str(sorted(config.items())).encode()).hexdigest()[:8]
+    connection_id = f"{mcp_url.split('//')[1].split('.')[0]}-{config_hash}"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            # Step 1: Create/update the connection
+            conn_resp = await client.post(
+                f"https://api.smithery.ai/connect/{namespace}",
+                json={
+                    "connectionId": connection_id,
+                    "mcpUrl": mcp_url,
+                    "headers": config,  # Config keys (like GITHUB_PERSONAL_ACCESS_TOKEN) are passed as headers
+                },
+                headers=headers,
+            )
+
+            if conn_resp.status_code not in (200, 201):
+                return f"❌ Failed to create Smithery Connect connection: HTTP {conn_resp.status_code} — {conn_resp.text[:200]}"
+
+            conn_data = conn_resp.json()
+            status = conn_data.get("status", {})
+            if status.get("state") == "auth_required":
+                auth_url = status.get("authorizationUrl", "")
+                return f"⚠️ This MCP server requires OAuth authorization. Please visit: {auth_url}"
+
+            # Step 2: Call the tool via the connection
+            tool_resp = await client.post(
+                f"https://api.smithery.ai/connect/{namespace}/{connection_id}/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": tool_name,
+                        "arguments": arguments,
+                    },
+                },
+                headers=headers,
+            )
+
+            data = tool_resp.json()
+
+            if "error" in data:
+                err = data["error"]
+                msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                return f"❌ MCP tool error: {msg[:200]}"
+
+            result = data.get("result", {})
+            if isinstance(result, str):
+                return result
+
+            content_blocks = result.get("content", []) if isinstance(result, dict) else []
+            texts = []
+            for block in content_blocks:
+                if isinstance(block, str):
+                    texts.append(block)
+                elif isinstance(block, dict):
+                    if block.get("type") == "text":
+                        texts.append(block.get("text", ""))
+                    elif block.get("type") == "image":
+                        texts.append(f"[Image: {block.get('mimeType', 'image')}]")
+                    else:
+                        texts.append(str(block))
+                else:
+                    texts.append(str(block))
+
+            return "\n".join(texts) if texts else str(result)
+
+    except Exception as e:
+        return f"❌ Smithery Connect error: {str(e)[:200]}"
 def _list_files(ws: Path, rel_path: str) -> str:
     # Handle enterprise_info/ as shared directory
     if rel_path and rel_path.startswith("enterprise_info"):

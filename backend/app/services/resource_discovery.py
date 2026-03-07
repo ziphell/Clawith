@@ -184,8 +184,8 @@ async def import_mcp_from_smithery(
 ) -> str:
     """Import an MCP server from Smithery into the platform.
 
-    Creates Tool records for each tool exposed by the MCP server,
-    and assigns them to the requesting agent.
+    Uses the Smithery Registry detail API to get tool definitions,
+    and stores the deploymentUrl for runtime execution via Smithery Connect.
     """
     api_key = await _get_smithery_api_key()
     if not api_key:
@@ -195,8 +195,8 @@ async def import_mcp_from_smithery(
             "Get your key at: https://smithery.ai/account/api-keys"
         )
 
-    # Step 1: Get server details from Smithery
-    headers = {"Accept": "application/json", "Authorization": f"Bearer {api_key}"}
+    # Step 1: Search for server by ID
+    headers = {"Accept": "application/json"}
 
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
@@ -209,7 +209,6 @@ async def import_mcp_from_smithery(
                 return f"❌ Server '{server_id}' not found on Smithery (HTTP {resp.status_code})"
             data = resp.json()
             servers = data.get("servers", [])
-            # Find exact match by qualifiedName
             server_info = None
             clean_id = server_id.lstrip("@")
             for s in servers:
@@ -217,7 +216,7 @@ async def import_mcp_from_smithery(
                     server_info = s
                     break
             if not server_info and servers:
-                server_info = servers[0]  # Best match
+                server_info = servers[0]
             if not server_info:
                 return f"❌ Server '{server_id}' not found on Smithery."
     except Exception as e:
@@ -235,31 +234,37 @@ async def import_mcp_from_smithery(
             f"🔗 {server_info.get('homepage', '')}"
         )
 
-    # Step 2: Build Smithery Connect URL
-    connect_url = f"https://server.smithery.ai/{qualified_name}"
-
-    # Build the MCP server URL with config
-    if config:
-        import urllib.parse
-        config_json = __import__("json").dumps(config)
-        config_b64 = __import__("base64").b64encode(config_json.encode()).decode()
-        mcp_url = f"{connect_url}?config={urllib.parse.quote(config_b64)}&apiKey={api_key}"
-    else:
-        mcp_url = f"{connect_url}?apiKey={api_key}"
-
-    # Step 3: Try to list tools from the MCP server via Smithery Connect
+    # Step 2: Get full server details including tools from registry API
     tools_discovered = []
+    deployment_url = None
     try:
-        from app.services.mcp_client import MCPClient
-        mcp_client = MCPClient(mcp_url)
-        tools_discovered = await mcp_client.list_tools()
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            detail_resp = await client.get(
+                f"{SMITHERY_API_BASE}/servers/{qualified_name}",
+                headers=headers,
+            )
+            if detail_resp.status_code == 200:
+                detail = detail_resp.json()
+                deployment_url = detail.get("deploymentUrl")
+                raw_tools = detail.get("tools", [])
+                tools_discovered = [
+                    {
+                        "name": t.get("name", ""),
+                        "description": t.get("description", ""),
+                        "inputSchema": t.get("inputSchema", {}),
+                    }
+                    for t in raw_tools if t.get("name")
+                ]
+                print(f"[ResourceDiscovery] Got {len(tools_discovered)} tools from registry for {qualified_name}")
+            else:
+                print(f"[ResourceDiscovery] Could not fetch detail for {qualified_name}: HTTP {detail_resp.status_code}")
     except Exception as e:
-        # If we can't list tools, create a generic entry
-        print(f"[ResourceDiscovery] Could not list tools from {server_id}: {e}")
+        print(f"[ResourceDiscovery] Could not fetch server detail: {e}")
 
-    # Step 4: Register in database
-    # Build a base URL WITHOUT config baked in (config is saved to AgentTool.config instead)
-    base_mcp_url = f"{connect_url}?apiKey={api_key}"
+    # Step 3: Determine the MCP server URL for runtime execution
+    # deploymentUrl is the actual MCP server (e.g. https://github.run.tools)
+    # We store this as the base URL; at runtime, Smithery Connect creates a connection with it
+    base_mcp_url = deployment_url or f"https://{qualified_name}.run.tools"
 
     async with async_session() as db:
         imported_tools = []
@@ -289,7 +294,7 @@ async def import_mcp_from_smithery(
                 select(Tool).where(Tool.mcp_server_name == display_name, Tool.type == "mcp")
             )
             for et in existing_server_tools_r.scalars().all():
-                et.mcp_server_url = base_mcp_url  # refresh URL
+                et.mcp_server_url = base_mcp_url
                 await _ensure_agent_tool(et.id)
 
         if tools_discovered:
@@ -309,7 +314,6 @@ async def import_mcp_from_smithery(
                 tool_name = f"mcp_{server_id.replace('/', '_').replace('@', '')}_{mcp_tool['name']}"
                 tool_display = f"{display_name}: {mcp_tool['name']}"
 
-                # Check if already exists
                 existing_r = await db.execute(select(Tool).where(Tool.name == tool_name))
                 existing_tool = existing_r.scalar_one_or_none()
                 if existing_tool:
@@ -340,7 +344,7 @@ async def import_mcp_from_smithery(
                 await _ensure_agent_tool(tool.id)
                 imported_tools.append(f"✅ {tool_display}")
         else:
-            # Create a single generic tool entry for the server
+            # Fallback: create a single generic tool entry
             tool_name = f"mcp_{server_id.replace('/', '_').replace('@', '')}"
             tool_display = display_name
 
@@ -371,12 +375,12 @@ async def import_mcp_from_smithery(
             db.add(tool)
             await db.flush()
             await _ensure_agent_tool(tool.id)
-            imported_tools.append(f"✅ {tool_display} (tools couldn't be listed — server may need configuration)")
+            imported_tools.append(f"✅ {tool_display} (tool list not available from registry — may need configuration)")
 
         await db.commit()
 
     result = f"🔌 Imported MCP server: **{display_name}** (`{server_id}`)\n\n"
     result += "\n".join(imported_tools)
-    result += f"\n\n📡 Connected via: Smithery Connect"
-    result += "\n\n💡 The imported tools are now available for use in this conversation."
+    result += f"\n\n📡 MCP Server URL: `{base_mcp_url}`"
+    result += "\n\n💡 The imported tools are now available for use."
     return result
