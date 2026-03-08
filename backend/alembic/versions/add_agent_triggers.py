@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "add_agent_triggers"
-down_revision = None
+down_revision = "add_participants"
 branch_labels = None
 depends_on = None
 

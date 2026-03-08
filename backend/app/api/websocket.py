@@ -129,7 +129,6 @@ async def call_llm(
 
     # Load tools dynamically from DB
     tools_for_llm = await get_agent_tools_for_llm(agent_id) if agent_id else AGENT_TOOLS
-    print(f"[LLM-DBG] tools_for_llm count={len(tools_for_llm)}, names={[t['function']['name'] for t in tools_for_llm[:5]]}...", flush=True)
 
     api_messages = [{"role": "system", "content": system_prompt}]
     api_messages.extend(messages)
@@ -585,11 +584,39 @@ async def websocket_chat(
     print(f"[WS] Ready! Agent={agent_name}")
 
     # Build conversation context from history
+    # IMPORTANT: Include tool_call messages so the LLM maintains tool-calling behavior.
+    # Without them, Claude sees user→assistant-text patterns and learns to skip tools.
     conversation: list[dict] = []
     for msg in history_messages:
-        if msg.role in ("tool_call",):
-            continue
-        conversation.append({"role": msg.role, "content": msg.content})
+        if msg.role == "tool_call":
+            # Convert stored tool_call JSON into OpenAI-format assistant+tool pair
+            try:
+                import json as _j_hist
+                tc_data = _j_hist.loads(msg.content)
+                tc_name = tc_data.get("name", "unknown")
+                tc_args = tc_data.get("args", {})
+                tc_result = tc_data.get("result", "")
+                tc_id = f"call_{msg.id}"  # synthetic tool_call_id
+                # Assistant message with tool_calls array
+                conversation.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tc_id,
+                        "type": "function",
+                        "function": {"name": tc_name, "arguments": _j_hist.dumps(tc_args, ensure_ascii=False)},
+                    }],
+                })
+                # Tool result message
+                conversation.append({
+                    "role": "tool",
+                    "tool_call_id": tc_id,
+                    "content": str(tc_result)[:500],
+                })
+            except Exception:
+                continue  # Skip malformed tool_call records
+        else:
+            conversation.append({"role": msg.role, "content": msg.content})
 
     try:
         while True:
