@@ -14,6 +14,13 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
 
     if (!res.ok) {
+        // Auto-logout on expired/invalid token
+        if (res.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+            throw new Error('Session expired');
+        }
         const error = await res.json().catch(() => ({ detail: 'Request failed' }));
         throw new Error(error.detail || `HTTP ${res.status}`);
     }
