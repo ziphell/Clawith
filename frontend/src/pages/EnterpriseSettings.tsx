@@ -977,16 +977,16 @@ export default function EnterpriseSettings() {
                         {/* Sub-filter pills */}
                         <div style={{ display: 'flex', gap: '8px', padding: '8px 12px', borderBottom: '1px solid var(--border-color)' }}>
                             {([
-                                ['all', `📋 ${t('enterprise.audit.filterAll')}`],
-                                ['background', `⚙️ ${t('enterprise.audit.filterBackground')}`],
-                                ['actions', `👤 ${t('enterprise.audit.filterActions')}`],
+                                ['all', t('enterprise.audit.filterAll')],
+                                ['background', t('enterprise.audit.filterBackground')],
+                                ['actions', t('enterprise.audit.filterActions')],
                             ] as const).map(([key, label]) => (
                                 <button key={key}
                                     onClick={() => setAuditFilter(key as any)}
                                     style={{
                                         padding: '4px 14px', borderRadius: '12px', fontSize: '12px', fontWeight: 500,
-                                        border: auditFilter === key ? '1px solid var(--accent-color)' : '1px solid var(--border-color)',
-                                        background: auditFilter === key ? 'var(--accent-color)' : 'transparent',
+                                        border: auditFilter === key ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                        background: auditFilter === key ? 'var(--accent-primary)' : 'transparent',
                                         color: auditFilter === key ? '#fff' : 'var(--text-secondary)',
                                         cursor: 'pointer', transition: 'all 0.15s',
                                     }}
