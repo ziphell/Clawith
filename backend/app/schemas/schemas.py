@@ -263,6 +263,7 @@ class ChannelConfigCreate(BaseModel):
     app_secret: str
     encrypt_key: str | None = None
     verification_token: str | None = None
+    extra_config: dict | None = None
 
 
 class ChannelConfigOut(BaseModel):
@@ -275,6 +276,7 @@ class ChannelConfigOut(BaseModel):
     is_configured: bool
     is_connected: bool
     last_tested_at: datetime | None = None
+    extra_config: dict | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

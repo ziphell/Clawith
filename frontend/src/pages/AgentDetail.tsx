@@ -487,6 +487,7 @@ function RelationshipEditor({ agentId, readOnly = false }: { agentId: string; re
 
 export default function AgentDetail() {
     const { t, i18n } = useTranslation();
+    const isChinese = i18n.language?.startsWith('zh');
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -720,6 +721,20 @@ export default function AgentDetail() {
             settingsInitRef.current = true;
         }
     }, [agent]);
+
+    // Welcome Message state
+    const [wmDraft, setWmDraft] = useState('');
+    const [wmSaved, setWmSaved] = useState(false);
+    // Sync draft when agent data reloads
+    useEffect(() => { setWmDraft((agent as any)?.welcome_message || ''); }, [(agent as any)?.welcome_message]);
+    const saveWm = async () => {
+        try {
+            await agentApi.update(id!, { welcome_message: wmDraft } as any);
+            queryClient.invalidateQueries({ queryKey: ['agent', id] });
+            setWmSaved(true);
+            setTimeout(() => setWmSaved(false), 2000);
+        } catch { }
+    };
 
     // Load chat history + connect websocket when chat tab is active
     const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
@@ -1107,13 +1122,14 @@ export default function AgentDetail() {
     });
 
     // ─── Channel config — Feishu ────────────────────────
-    const [channelForm, setChannelForm] = useState({ app_id: '', app_secret: '', encrypt_key: '' });
+    const [channelForm, setChannelForm] = useState({ app_id: '', app_secret: '', encrypt_key: '', connection_mode: 'webhook' });
     const [feishuEditing, setFeishuEditing] = useState(false);
 
     const saveChannel = useMutation({
         mutationFn: () => channelApi.create(id!, {
             channel_type: 'feishu', app_id: channelForm.app_id,
             app_secret: channelForm.app_secret, encrypt_key: channelForm.encrypt_key || undefined,
+            extra_config: { connection_mode: channelForm.connection_mode }
         }),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['channel', id] }),
     });
@@ -1386,13 +1402,13 @@ export default function AgentDetail() {
                                 </div>
                                 <div className="card">
                                     <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>{t('agent.settings.today')} Token</div>
-                                    <div style={{ fontSize: '22px', fontWeight: 600 }}>{agent.tokens_used_today.toLocaleString()}</div>
-                                    {agent.max_tokens_per_day && <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{t('agent.settings.noLimit')} {agent.max_tokens_per_day.toLocaleString()}</div>}
+                                    <div style={{ fontSize: '22px', fontWeight: 600 }}>{(agent.tokens_used_today || 0).toLocaleString()}</div>
+                                    {agent.max_tokens_per_day && <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{t('agent.settings.noLimit')} {Number(agent.max_tokens_per_day).toLocaleString()}</div>}
                                 </div>
                                 <div className="card">
                                     <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>{t('agent.settings.month')} Token</div>
-                                    <div style={{ fontSize: '22px', fontWeight: 600 }}>{agent.tokens_used_month.toLocaleString()}</div>
-                                    {agent.max_tokens_per_month && <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{t('agent.settings.noLimit')} {agent.max_tokens_per_month.toLocaleString()}</div>}
+                                    <div style={{ fontSize: '22px', fontWeight: 600 }}>{(agent.tokens_used_month || 0).toLocaleString()}</div>
+                                    {agent.max_tokens_per_month && <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{t('agent.settings.noLimit')} {Number(agent.max_tokens_per_month).toLocaleString()}</div>}
                                 </div>
                                 <div className="card">
                                     <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>LLM Calls Today</div>
@@ -2504,45 +2520,29 @@ export default function AgentDetail() {
                                 </div>
 
                                 {/* Welcome Message */}
-                                {(() => {
-                                    const [wmDraft, setWmDraft] = useState((agent as any)?.welcome_message || '');
-                                    const [wmSaved, setWmSaved] = useState(false);
-                                    // Sync draft when agent data reloads
-                                    useEffect(() => { setWmDraft((agent as any)?.welcome_message || ''); }, [(agent as any)?.welcome_message]);
-                                    const saveWm = async () => {
-                                        try {
-                                            await agentApi.update(id!, { welcome_message: wmDraft } as any);
-                                            queryClient.invalidateQueries({ queryKey: ['agent', id] });
-                                            setWmSaved(true);
-                                            setTimeout(() => setWmSaved(false), 2000);
-                                        } catch { }
-                                    };
-                                    return (
-                                        <div className="card" style={{ marginBottom: '12px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                                <h4 style={{ margin: 0 }}>{isChinese ? '欢迎语' : 'Welcome Message'}</h4>
-                                                {wmSaved && <span style={{ fontSize: '12px', color: 'var(--success)' }}>✓ {isChinese ? '已保存' : 'Saved'}</span>}
-                                            </div>
-                                            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
-                                                {isChinese
-                                                    ? '当用户在网页端发起新对话时，Agent 会自动发送的欢迎语。支持 Markdown 语法。留空则不发送。'
-                                                    : 'Greeting message sent automatically when a user starts a new web conversation. Supports Markdown. Leave empty to disable.'}
-                                            </p>
-                                            <textarea
-                                                className="input"
-                                                rows={4}
-                                                value={wmDraft}
-                                                onChange={e => setWmDraft(e.target.value)}
-                                                onBlur={saveWm}
-                                                placeholder={isChinese ? '例如：你好！我是你的 AI 助手，有什么可以帮你的吗？' : "e.g. Hello! I'm your AI assistant. How can I help you?"}
-                                                style={{
-                                                    width: '100%', minHeight: '80px', resize: 'vertical',
-                                                    fontFamily: 'inherit', fontSize: '13px',
-                                                }}
-                                            />
-                                        </div>
-                                    );
-                                })()}
+                                <div className="card" style={{ marginBottom: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <h4 style={{ margin: 0 }}>{isChinese ? '欢迎语' : 'Welcome Message'}</h4>
+                                        {wmSaved && <span style={{ fontSize: '12px', color: 'var(--success)' }}>✓ {isChinese ? '已保存' : 'Saved'}</span>}
+                                    </div>
+                                    <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
+                                        {isChinese
+                                            ? '当用户在网页端发起新对话时，Agent 会自动发送的欢迎语。支持 Markdown 语法。留空则不发送。'
+                                            : 'Greeting message sent automatically when a user starts a new web conversation. Supports Markdown. Leave empty to disable.'}
+                                    </p>
+                                    <textarea
+                                        className="input"
+                                        rows={4}
+                                        value={wmDraft}
+                                        onChange={e => setWmDraft(e.target.value)}
+                                        onBlur={saveWm}
+                                        placeholder={isChinese ? '例如：你好！我是你的 AI 助手，有什么可以帮你的吗？' : "e.g. Hello! I'm your AI assistant. How can I help you?"}
+                                        style={{
+                                            width: '100%', minHeight: '80px', resize: 'vertical',
+                                            fontFamily: 'inherit', fontSize: '13px',
+                                        }}
+                                    />
+                                </div>
 
                                 {/* Autonomy Policy */}
                                 <div className="card" style={{ marginBottom: '12px' }}>
@@ -3102,34 +3102,37 @@ export default function AgentDetail() {
                                             </div>
                                         ) : channelConfig && !feishuEditing ? (
                                             <div>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Mode: <strong>{channelConfig.extra_config?.connection_mode === 'websocket' ? 'Long Connection (WebSocket)' : 'Webhook'}</strong></div>
                                                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>App ID: <code>{channelConfig.app_id}</code></div>
-                                                <div style={{ background: 'var(--bg-secondary)', borderRadius: '6px', padding: '10px', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
-                                                    <div style={{ color: 'var(--text-tertiary)', marginBottom: '6px' }}>Webhook URL</div>
-                                                    <div style={{ lineHeight: 1.6, wordBreak: 'break-all' }}>
-                                                        <span style={{ color: 'var(--accent-primary)' }}>
-                                                            {webhookData?.webhook_url || `${window.location.origin}/api/channel/feishu/${id}/webhook`}
-                                                        </span>
-                                                        <button
-                                                            title="Copy"
-                                                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '6px', padding: '1px 4px', cursor: 'pointer', borderRadius: '3px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-secondary)', verticalAlign: 'middle', lineHeight: 1 }}
-                                                            onClick={(e) => {
-                                                                const url = webhookData?.webhook_url || `${window.location.origin}/api/channel/feishu/${id}/webhook`;
-                                                                navigator.clipboard.writeText(url).then(() => {
-                                                                    const btn = e.currentTarget as HTMLButtonElement;
-                                                                    const origHtml = btn.innerHTML;
-                                                                    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 2 5 10 2 7"/></svg>';
-                                                                    btn.style.color = 'rgb(16,185,129)';
-                                                                    setTimeout(() => { btn.innerHTML = origHtml; btn.style.color = ''; }, 1500);
-                                                                });
-                                                            }}
-                                                        >
-                                                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                                                <rect x="4" y="4" width="9" height="11" rx="1.5" />
-                                                                <path d="M3 11H2a1 1 0 01-1-1V2a1 1 0 011-1h8a1 1 0 011 1v1" />
-                                                            </svg>
-                                                        </button>
+                                                {channelConfig.extra_config?.connection_mode !== 'websocket' && (
+                                                    <div style={{ background: 'var(--bg-secondary)', borderRadius: '6px', padding: '10px', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+                                                        <div style={{ color: 'var(--text-tertiary)', marginBottom: '6px' }}>Webhook URL</div>
+                                                        <div style={{ lineHeight: 1.6, wordBreak: 'break-all' }}>
+                                                            <span style={{ color: 'var(--accent-primary)' }}>
+                                                                {webhookData?.webhook_url || `${window.location.origin}/api/channel/feishu/${id}/webhook`}
+                                                            </span>
+                                                            <button
+                                                                title="Copy"
+                                                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: '6px', padding: '1px 4px', cursor: 'pointer', borderRadius: '3px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-secondary)', verticalAlign: 'middle', lineHeight: 1 }}
+                                                                onClick={(e) => {
+                                                                    const url = webhookData?.webhook_url || `${window.location.origin}/api/channel/feishu/${id}/webhook`;
+                                                                    navigator.clipboard.writeText(url).then(() => {
+                                                                        const btn = e.currentTarget as HTMLButtonElement;
+                                                                        const origHtml = btn.innerHTML;
+                                                                        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 2 5 10 2 7"/></svg>';
+                                                                        btn.style.color = 'rgb(16,185,129)';
+                                                                        setTimeout(() => { btn.innerHTML = origHtml; btn.style.color = ''; }, 1500);
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <rect x="4" y="4" width="9" height="11" rx="1.5" />
+                                                                    <path d="M3 11H2a1 1 0 01-1-1V2a1 1 0 011-1h8a1 1 0 011 1v1" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                )}
                                                 <details style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                                                     <summary style={{ cursor: 'pointer', fontWeight: 500, color: 'var(--text-primary)', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                         <span style={{ fontSize: '10px' }}>▶</span> {t('channelGuide.setupGuide')}
@@ -3169,7 +3172,7 @@ export default function AgentDetail() {
                                                     <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', background: 'var(--bg-secondary)', padding: '6px 10px', borderRadius: '6px' }}>💡 {t('channelGuide.feishu.note')}</div>
                                                 </details>
                                                 <div style={{ display: 'flex', gap: '8px' }}>
-                                                    <button className="btn btn-secondary" style={{ fontSize: '12px', padding: '4px 12px' }} onClick={() => { setChannelForm({ app_id: channelConfig.app_id || '', app_secret: channelConfig.app_secret || '', encrypt_key: channelConfig.encrypt_key || '' }); setFeishuEditing(true); }}>Edit</button>
+                                                    <button className="btn btn-secondary" style={{ fontSize: '12px', padding: '4px 12px' }} onClick={() => { setChannelForm({ app_id: channelConfig.app_id || '', app_secret: channelConfig.app_secret || '', encrypt_key: channelConfig.encrypt_key || '', connection_mode: channelConfig.extra_config?.connection_mode || 'webhook' }); setFeishuEditing(true); }}>Edit</button>
                                                     <button className="btn btn-danger" style={{ fontSize: '12px', padding: '4px 12px' }} onClick={async () => { await channelApi.delete(id!); queryClient.invalidateQueries({ queryKey: ['channel', id] }); }}>Disconnect</button>
                                                 </div>
                                             </div>
@@ -3188,12 +3191,27 @@ export default function AgentDetail() {
                                                         </div>
                                                     </div>
                                                     <div>
-                                                        <label style={{ fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '4px' }}>Encrypt Key</label>
-                                                        <div style={{ position: 'relative' }}>
-                                                            <input className="input" type={showPwds['feishu_encrypt'] ? 'text' : 'password'} value={channelForm.encrypt_key} onChange={e => setChannelForm({ ...channelForm, encrypt_key: e.target.value })} style={{ fontSize: '12px', paddingRight: '36px', width: '100%' }} />
-                                                            <button type="button" onClick={() => togglePwd('feishu_encrypt')} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '2px', display: 'flex', alignItems: 'center' }}>{showPwds['feishu_encrypt'] ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>}</button>
+                                                        <label style={{ fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '8px' }}>Connection Mode</label>
+                                                        <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
+                                                            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                                                <input type="radio" name="connection_mode" value="webhook" checked={channelForm.connection_mode === 'webhook'} onChange={() => setChannelForm({ ...channelForm, connection_mode: 'webhook' })} />
+                                                                Webhook (Event Subscription)
+                                                            </label>
+                                                            <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                                                <input type="radio" name="connection_mode" value="websocket" checked={channelForm.connection_mode === 'websocket'} onChange={() => setChannelForm({ ...channelForm, connection_mode: 'websocket' })} />
+                                                                Long Connection (WebSocket)
+                                                            </label>
                                                         </div>
                                                     </div>
+                                                    {channelForm.connection_mode === 'webhook' && (
+                                                        <div>
+                                                            <label style={{ fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '4px' }}>Encrypt Key</label>
+                                                            <div style={{ position: 'relative' }}>
+                                                                <input className="input" type={showPwds['feishu_encrypt'] ? 'text' : 'password'} value={channelForm.encrypt_key} onChange={e => setChannelForm({ ...channelForm, encrypt_key: e.target.value })} style={{ fontSize: '12px', paddingRight: '36px', width: '100%' }} />
+                                                                <button type="button" onClick={() => togglePwd('feishu_encrypt')} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '2px', display: 'flex', alignItems: 'center' }}>{showPwds['feishu_encrypt'] ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>}</button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <details style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                                                     <summary style={{ cursor: 'pointer', fontWeight: 500, color: 'var(--text-primary)', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>

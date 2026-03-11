@@ -148,6 +148,24 @@ class FeishuService:
             )
             return resp.json()
 
+    async def patch_message(self, app_id: str, app_secret: str, message_id: str, content: str) -> dict:
+        """Patch an existing message (e.g. updating an interactive card for streaming)."""
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(FEISHU_APP_TOKEN_URL, json={
+                "app_id": app_id,
+                "app_secret": app_secret,
+            })
+            app_token = token_resp.json().get("app_access_token", "")
+
+            resp = await client.patch(
+                f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}",
+                json={
+                    "content": content,
+                },
+                headers={"Authorization": f"Bearer {app_token}"},
+            )
+            return resp.json()
+
     async def resolve_open_id(self, app_id: str, app_secret: str,
                                email: str | None = None, mobile: str | None = None) -> str | None:
         """Resolve a user's open_id for a specific app using email or mobile.

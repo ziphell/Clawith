@@ -887,7 +887,7 @@ export default function EnterpriseSettings() {
                                     </div>
                                     <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                         <label className="form-label">API Key</label>
-                                        <input className="form-input" type="password" value={modelForm.api_key} onChange={e => setModelForm({ ...modelForm, api_key: e.target.value })} />
+                                        <input className="form-input" type="password" placeholder={editingModelId ? '•••••••• (Leave blank to keep unchanged)' : 'Enter API Key'} value={modelForm.api_key} onChange={e => setModelForm({ ...modelForm, api_key: e.target.value })} />
                                     </div>
                                     <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>

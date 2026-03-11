@@ -103,7 +103,7 @@ async def remove_llm_model(
 @router.put("/llm-models/{model_id}", response_model=LLMModelOut)
 async def update_llm_model(
     model_id: uuid.UUID,
-    data: LLMModelCreate,
+    data: LLMModelUpdate,
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -112,16 +112,31 @@ async def update_llm_model(
     model = result.scalar_one_or_none()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
-    model.provider = data.provider
-    model.model = data.model
-    model.label = data.label
-    model.base_url = data.base_url
-    if data.api_key:  # Only update API key if provided (not empty)
-        model.api_key_encrypted = data.api_key
-    model.enabled = data.enabled
-    model.supports_vision = data.supports_vision
-    await db.flush()
-    return LLMModelOut.model_validate(model)
+
+    try:
+        if data.provider:
+            model.provider = data.provider
+        if data.model:
+            model.model = data.model
+        if data.label is not None:
+            model.label = data.label
+        if hasattr(data, 'base_url') and data.base_url is not None:
+            model.base_url = data.base_url
+        if data.api_key and data.api_key.strip():  # Only update API key if provided (not empty)
+            model.api_key_encrypted = data.api_key.strip()
+        if data.max_tokens_per_day is not None:
+            model.max_tokens_per_day = data.max_tokens_per_day
+        if data.enabled is not None:
+            model.enabled = data.enabled
+        if hasattr(data, 'supports_vision') and data.supports_vision is not None:
+            model.supports_vision = data.supports_vision
+
+        await db.commit()
+        await db.refresh(model)
+        return LLMModelOut.model_validate(model)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update model")
 
 
 # ─── Enterprise Info ────────────────────────────────────

@@ -1,3 +1,4 @@
+name: clawith-yutong
 services:
   postgres:
     image: postgres:15-alpine
@@ -67,7 +68,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3008:3000"
+      - "3011:3000"
     environment:
       VITE_API_URL: http://localhost:8000
     volumes:
@@ -84,4 +85,4 @@ volumes:
 
 networks:
   default:
-    name: clawith_network
+    name: clawith-yutong-network

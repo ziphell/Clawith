@@ -419,6 +419,181 @@ AGENT_TOOLS = [
             },
         },
     },
+    # ── Feishu Document Tools ──────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_doc_read",
+            "description": "Read the text content of a Feishu document (Docx). Provide the document token from its URL. E.g. URL is 'https://xxx.feishu.cn/docx/DxYzAbCd', token is 'DxYzAbCd'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_token": {
+                        "type": "string",
+                        "description": "Feishu document token (from document URL)",
+                    },
+                    "max_chars": {
+                        "type": "integer",
+                        "description": "Max characters to return (default 6000, max 20000)",
+                    },
+                },
+                "required": ["document_token"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_doc_create",
+            "description": "Create a new Feishu document with a given title. Returns the new document token and URL.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Document title",
+                    },
+                    "folder_token": {
+                        "type": "string",
+                        "description": "Optional: parent folder token. Leave empty to create in root My Drive.",
+                    },
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_doc_append",
+            "description": "Append text content to an existing Feishu document. Content is appended as one or more new paragraphs at the end.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_token": {
+                        "type": "string",
+                        "description": "Feishu document token",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Text content to append. Supports multiple lines separated by \\n.",
+                    },
+                },
+                "required": ["document_token", "content"],
+            },
+        },
+    },
+    # ── Feishu Calendar Tools ──────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_calendar_list",
+            "description": "List calendar events for a user within a time range. Defaults to next 7 days.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_email": {
+                        "type": "string",
+                        "description": "User's work email, e.g. 'zhangsan@company.com'",
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Range start, ISO 8601 e.g. '2026-03-10T00:00:00+08:00'. Default: now.",
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "Range end, ISO 8601. Default: 7 days from now.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max events to return (default 20)",
+                    },
+                },
+                "required": ["user_email"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_calendar_create",
+            "description": "Create a calendar event for a user, optionally inviting attendees.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_email": {
+                        "type": "string",
+                        "description": "Organizer's email",
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Event title",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Event description/agenda",
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Event start (ISO 8601), e.g. '2026-03-15T14:00:00+08:00'",
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "Event end (ISO 8601), e.g. '2026-03-15T15:00:00+08:00'",
+                    },
+                    "attendee_emails": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of attendee emails to invite",
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "Event location / meeting room",
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Timezone, e.g. 'Asia/Shanghai'. Defaults to Asia/Shanghai.",
+                    },
+                },
+                "required": ["user_email", "summary", "start_time", "end_time"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_calendar_update",
+            "description": "Update an existing Feishu calendar event. Provide only the fields you want to change.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_email": {"type": "string", "description": "Calendar owner's email"},
+                    "event_id": {"type": "string", "description": "Event ID from feishu_calendar_list"},
+                    "summary": {"type": "string", "description": "New title"},
+                    "description": {"type": "string", "description": "New description"},
+                    "start_time": {"type": "string", "description": "New start time (ISO 8601)"},
+                    "end_time": {"type": "string", "description": "New end time (ISO 8601)"},
+                    "location": {"type": "string", "description": "New location"},
+                },
+                "required": ["user_email", "event_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_calendar_delete",
+            "description": "Delete (cancel) a Feishu calendar event.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_email": {"type": "string", "description": "Calendar owner's email"},
+                    "event_id": {"type": "string", "description": "Event ID to delete"},
+                },
+                "required": ["user_email", "event_id"],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -695,6 +870,22 @@ async def execute_tool(
             result = await _discover_resources(arguments)
         elif tool_name == "import_mcp_server":
             result = await _import_mcp_server(agent_id, arguments)
+        # ── Feishu Document Tools ──
+        elif tool_name == "feishu_doc_read":
+            result = await _feishu_doc_read(agent_id, arguments)
+        elif tool_name == "feishu_doc_create":
+            result = await _feishu_doc_create(agent_id, arguments)
+        elif tool_name == "feishu_doc_append":
+            result = await _feishu_doc_append(agent_id, arguments)
+        # ── Feishu Calendar Tools ──
+        elif tool_name == "feishu_calendar_list":
+            result = await _feishu_calendar_list(agent_id, arguments)
+        elif tool_name == "feishu_calendar_create":
+            result = await _feishu_calendar_create(agent_id, arguments)
+        elif tool_name == "feishu_calendar_update":
+            result = await _feishu_calendar_update(agent_id, arguments)
+        elif tool_name == "feishu_calendar_delete":
+            result = await _feishu_calendar_delete(agent_id, arguments)
         else:
             # Try MCP tool execution
             result = await _execute_mcp_tool(tool_name, arguments, agent_id=agent_id)
@@ -2618,3 +2809,403 @@ async def _upload_image(agent_id: uuid.UUID, ws: Path, arguments: dict) -> str:
     except Exception as e:
         return f"❌ Upload error: {type(e).__name__}: {str(e)[:300]}"
 
+
+
+# ─── Feishu Helper ────────────────────────────────────────────────────────────
+
+async def _get_feishu_token(agent_id: uuid.UUID) -> tuple[str, str] | None:
+    """Get (app_id, app_access_token) for the agent's configured Feishu channel."""
+    import httpx
+    from app.models.channel_config import ChannelConfig
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(ChannelConfig).where(
+                ChannelConfig.agent_id == agent_id,
+                ChannelConfig.channel_type == "feishu",
+                ChannelConfig.is_configured == True,
+            )
+        )
+        config = result.scalar_one_or_none()
+
+    if not config or not config.app_id or not config.app_secret:
+        return None
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal",
+            json={"app_id": config.app_id, "app_secret": config.app_secret},
+        )
+        token = resp.json().get("app_access_token", "")
+
+    return (config.app_id, token) if token else None
+
+
+async def _feishu_resolve_open_id(token: str, email: str) -> str | None:
+    """Resolve a user's open_id from their email using app_access_token."""
+    import httpx
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id",
+            json={"emails": [email]},
+            headers={"Authorization": f"Bearer {token}"},
+            params={"user_id_type": "open_id"},
+        )
+    data = resp.json()
+    if data.get("code") != 0:
+        return None
+    for u in data.get("data", {}).get("user_list", []):
+        oid = u.get("user_id")
+        if oid:
+            return oid
+    return None
+
+
+def _iso_to_ts(iso_str: str) -> float:
+    """Convert ISO 8601 string to Unix timestamp."""
+    from datetime import datetime as _dt
+    for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            if iso_str.endswith("Z"):
+                d = _dt.fromisoformat(iso_str.replace("Z", "+00:00"))
+            else:
+                d = _dt.strptime(iso_str, fmt)
+            return d.timestamp()
+        except ValueError:
+            continue
+    raise ValueError(f"Cannot parse datetime: {iso_str!r}")
+
+
+# ─── Feishu Document Tools ────────────────────────────────────────────────────
+
+async def _feishu_doc_read(agent_id: uuid.UUID, arguments: dict) -> str:
+    import httpx
+    document_token = arguments.get("document_token", "").strip()
+    if not document_token:
+        return "❌ Missing required argument 'document_token'"
+    max_chars = min(int(arguments.get("max_chars", 6000)), 20000)
+
+    creds = await _get_feishu_token(agent_id)
+    if not creds:
+        return "❌ Agent has no Feishu channel configured."
+    _, token = creds
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(
+            f"https://open.feishu.cn/open-apis/docx/v1/documents/{document_token}/raw_content",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"lang": 0},
+        )
+
+    data = resp.json()
+    if data.get("code") != 0:
+        return f"❌ Failed to read document: {data.get('msg')} (code {data.get('code')})"
+
+    content = data.get("data", {}).get("content", "")
+    if not content:
+        return f"📄 Document '{document_token}' is empty."
+
+    truncated = ""
+    if len(content) > max_chars:
+        content = content[:max_chars]
+        truncated = f"\n\n_(Truncated to {max_chars} chars)_"
+
+    return f"📄 **Document content** (`{document_token}`):\n\n{content}{truncated}"
+
+
+async def _feishu_doc_create(agent_id: uuid.UUID, arguments: dict) -> str:
+    import httpx
+    title = arguments.get("title", "").strip()
+    if not title:
+        return "❌ Missing required argument 'title'"
+
+    creds = await _get_feishu_token(agent_id)
+    if not creds:
+        return "❌ Agent has no Feishu channel configured."
+    _, token = creds
+
+    body: dict = {"title": title}
+    if arguments.get("folder_token"):
+        body["folder_token"] = arguments["folder_token"]
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.post(
+            "https://open.feishu.cn/open-apis/docx/v1/documents",
+            json=body,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    data = resp.json()
+    if data.get("code") != 0:
+        return f"❌ Failed to create document: {data.get('msg')} (code {data.get('code')})"
+
+    doc_token = data.get("data", {}).get("document", {}).get("document_id", "")
+    return (
+        f"✅ Document created!\n"
+        f"**Title**: {title}\n"
+        f"**Token**: `{doc_token}`\n"
+        f"**URL**: https://bytedance.larkoffice.com/docx/{doc_token}"
+    )
+
+
+async def _feishu_doc_append(agent_id: uuid.UUID, arguments: dict) -> str:
+    import httpx
+    document_token = arguments.get("document_token", "").strip()
+    content = arguments.get("content", "").strip()
+    if not document_token:
+        return "❌ Missing required argument 'document_token'"
+    if not content:
+        return "❌ Missing required argument 'content'"
+
+    creds = await _get_feishu_token(agent_id)
+    if not creds:
+        return "❌ Agent has no Feishu channel configured."
+    _, token = creds
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        meta = (await client.get(
+            f"https://open.feishu.cn/open-apis/docx/v1/documents/{document_token}",
+            headers=headers,
+        )).json()
+        if meta.get("code") != 0:
+            return f"❌ Cannot access document: {meta.get('msg')}"
+
+        body_block_id = (
+            meta.get("data", {}).get("document", {}).get("body", {}).get("block_id")
+            or document_token
+        )
+
+        children = [
+            {"block_type": 2, "paragraph": {
+                "elements": [{"type": "text_run", "text_run": {"content": line or " "}}]
+            }}
+            for line in content.split("\n")
+        ]
+
+        result = (await client.post(
+            f"https://open.feishu.cn/open-apis/docx/v1/documents/{document_token}/blocks/{body_block_id}/children",
+            json={"children": children, "index": -1},
+            headers=headers,
+        )).json()
+
+    if result.get("code") != 0:
+        return f"❌ Failed to append: {result.get('msg')} (code {result.get('code')})"
+
+    return (
+        f"✅ Appended {len(children)} paragraph(s) to `{document_token}`.\n"
+        f"View: https://bytedance.larkoffice.com/docx/{document_token}"
+    )
+
+
+# ─── Feishu Calendar Tools ────────────────────────────────────────────────────
+
+async def _feishu_calendar_list(agent_id: uuid.UUID, arguments: dict) -> str:
+    import httpx
+    from datetime import timedelta
+
+    user_email = arguments.get("user_email", "").strip()
+    if not user_email:
+        return "❌ Missing required argument 'user_email'"
+
+    creds = await _get_feishu_token(agent_id)
+    if not creds:
+        return "❌ Agent has no Feishu channel configured."
+    _, token = creds
+
+    open_id = await _feishu_resolve_open_id(token, user_email)
+    if not open_id:
+        return f"❌ User '{user_email}' not found in Feishu."
+
+    now = datetime.now(timezone.utc)
+    start_str = arguments.get("start_time") or now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_str = arguments.get("end_time") or (now + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    max_results = min(int(arguments.get("max_results", 20)), 50)
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(
+            "https://open.feishu.cn/open-apis/calendar/v4/calendars/primary/events",
+            headers={"Authorization": f"Bearer {token}"},
+            params={
+                "start_time": start_str,
+                "end_time": end_str,
+                "page_size": max_results,
+                "user_id_type": "open_id",
+                "user_id": open_id,
+            },
+        )
+
+    data = resp.json()
+    if data.get("code") != 0:
+        return f"❌ Calendar API error: {data.get('msg')} (code {data.get('code')})"
+
+    items = data.get("data", {}).get("items", [])
+    if not items:
+        return f"📅 No events for {user_email} in this period."
+
+    lines = [f"📅 **{user_email}'s calendar** ({len(items)} events):\n"]
+    for ev in items:
+        summary = ev.get("summary", "(no title)")
+        start = ev.get("start_time", {}).get("timestamp", "")
+        end_t = ev.get("end_time", {}).get("timestamp", "")
+        location = ev.get("location", {}).get("name", "")
+        event_id = ev.get("event_id", "")
+        try:
+            from datetime import datetime as _dt
+            s = _dt.fromtimestamp(int(start), tz=timezone.utc).strftime("%m-%d %H:%M") if start else "?"
+            e = _dt.fromtimestamp(int(end_t), tz=timezone.utc).strftime("%H:%M") if end_t else "?"
+        except Exception:
+            s, e = start, end_t
+        loc_str = f" | 📍{location}" if location else ""
+        lines.append(f"- **{summary}** | 🕐{s}–{e}{loc_str}  (ID: `{event_id}`)")
+
+    return "\n".join(lines)
+
+
+async def _feishu_calendar_create(agent_id: uuid.UUID, arguments: dict) -> str:
+    import httpx
+
+    user_email = arguments.get("user_email", "").strip()
+    summary = arguments.get("summary", "").strip()
+    start_time = arguments.get("start_time", "").strip()
+    end_time = arguments.get("end_time", "").strip()
+
+    for f, v in [("user_email", user_email), ("summary", summary),
+                 ("start_time", start_time), ("end_time", end_time)]:
+        if not v:
+            return f"❌ Missing required argument '{f}'"
+
+    creds = await _get_feishu_token(agent_id)
+    if not creds:
+        return "❌ Agent has no Feishu channel configured."
+    _, token = creds
+
+    open_id = await _feishu_resolve_open_id(token, user_email)
+    if not open_id:
+        return f"❌ User '{user_email}' not found in Feishu."
+
+    tz = arguments.get("timezone", "Asia/Shanghai")
+    body: dict = {
+        "summary": summary,
+        "start_time": {"timestamp": str(int(_iso_to_ts(start_time))), "timezone": tz},
+        "end_time": {"timestamp": str(int(_iso_to_ts(end_time))), "timezone": tz},
+    }
+    if arguments.get("description"):
+        body["description"] = arguments["description"]
+    if arguments.get("location"):
+        body["location"] = {"name": arguments["location"]}
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.post(
+            "https://open.feishu.cn/open-apis/calendar/v4/calendars/primary/events",
+            json=body,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"user_id_type": "open_id", "user_id": open_id},
+        )
+
+    data = resp.json()
+    if data.get("code") != 0:
+        return f"❌ Failed to create event: {data.get('msg')} (code {data.get('code')})"
+
+    event_id = data.get("data", {}).get("event", {}).get("event_id", "")
+
+    # Invite attendees
+    attendee_emails = arguments.get("attendee_emails", [])
+    if attendee_emails and event_id:
+        async with httpx.AsyncClient(timeout=20) as client:
+            for email in attendee_emails[:20]:
+                aid = await _feishu_resolve_open_id(token, email)
+                if aid:
+                    await client.post(
+                        f"https://open.feishu.cn/open-apis/calendar/v4/calendars/primary/events/{event_id}/attendees",
+                        json={"attendees": [{"type": "user", "user_id": aid}]},
+                        headers={"Authorization": f"Bearer {token}"},
+                        params={"user_id_type": "open_id", "user_id": open_id},
+                    )
+
+    att_str = f"\n**Attendees**: {', '.join(attendee_emails)}" if attendee_emails else ""
+    return (
+        f"✅ Event created!\n"
+        f"**Title**: {summary}\n"
+        f"**Time**: {start_time} → {end_time}{att_str}\n"
+        f"**Event ID**: `{event_id}`"
+    )
+
+
+async def _feishu_calendar_update(agent_id: uuid.UUID, arguments: dict) -> str:
+    import httpx
+
+    user_email = arguments.get("user_email", "").strip()
+    event_id = arguments.get("event_id", "").strip()
+    if not user_email or not event_id:
+        return "❌ Both 'user_email' and 'event_id' are required."
+
+    creds = await _get_feishu_token(agent_id)
+    if not creds:
+        return "❌ Agent has no Feishu channel configured."
+    _, token = creds
+
+    open_id = await _feishu_resolve_open_id(token, user_email)
+    if not open_id:
+        return f"❌ User '{user_email}' not found."
+
+    patch: dict = {}
+    tz = arguments.get("timezone", "Asia/Shanghai")
+    if arguments.get("summary"):
+        patch["summary"] = arguments["summary"]
+    if arguments.get("description"):
+        patch["description"] = arguments["description"]
+    if arguments.get("location"):
+        patch["location"] = {"name": arguments["location"]}
+    if arguments.get("start_time"):
+        patch["start_time"] = {"timestamp": str(int(_iso_to_ts(arguments["start_time"]))), "timezone": tz}
+    if arguments.get("end_time"):
+        patch["end_time"] = {"timestamp": str(int(_iso_to_ts(arguments["end_time"]))), "timezone": tz}
+
+    if not patch:
+        return "ℹ️ No fields to update."
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.patch(
+            f"https://open.feishu.cn/open-apis/calendar/v4/calendars/primary/events/{event_id}",
+            json=patch,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"user_id_type": "open_id", "user_id": open_id},
+        )
+
+    data = resp.json()
+    if data.get("code") != 0:
+        return f"❌ Failed to update: {data.get('msg')} (code {data.get('code')})"
+
+    return f"✅ Event `{event_id}` updated. Changed: {', '.join(patch.keys())}."
+
+
+async def _feishu_calendar_delete(agent_id: uuid.UUID, arguments: dict) -> str:
+    import httpx
+
+    user_email = arguments.get("user_email", "").strip()
+    event_id = arguments.get("event_id", "").strip()
+    if not user_email or not event_id:
+        return "❌ Both 'user_email' and 'event_id' are required."
+
+    creds = await _get_feishu_token(agent_id)
+    if not creds:
+        return "❌ Agent has no Feishu channel configured."
+    _, token = creds
+
+    open_id = await _feishu_resolve_open_id(token, user_email)
+    if not open_id:
+        return f"❌ User '{user_email}' not found."
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.delete(
+            f"https://open.feishu.cn/open-apis/calendar/v4/calendars/primary/events/{event_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"user_id_type": "open_id", "user_id": open_id},
+        )
+
+    data = resp.json()
+    if data.get("code") != 0:
+        return f"❌ Failed to delete: {data.get('msg')} (code {data.get('code')})"
+
+    return f"✅ Event `{event_id}` deleted successfully."
