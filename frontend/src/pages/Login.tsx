@@ -135,7 +135,7 @@ export default function Login() {
 
                 <div className="login-form-wrapper">
                     <div className="login-form-header">
-                        <div className="login-form-logo"><img src="/logo.png" alt="" style={{ width: 28, height: 28, marginRight: 8, verticalAlign: 'middle' }} />Clawith</div>
+                        <div className="login-form-logo"><img src="/logo-black.png" className="login-logo-img" alt="" style={{ width: 28, height: 28, marginRight: 8, verticalAlign: 'middle' }} />Clawith</div>
                         <h2 className="login-form-title">
                             {isRegister ? t('auth.register') : t('auth.login')}
                         </h2>

@@ -927,6 +927,12 @@ select:focus {
   background-clip: text;
 }
 
+/* Invert the black logo to white when on dark backgrounds */
+[data-theme="dark"] .login-logo-img {
+  filter: invert(1);
+}
+
+
 .login-form-title {
   font-size: 28px;
   font-weight: 700;
