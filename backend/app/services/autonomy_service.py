@@ -148,6 +148,24 @@ class AutonomyService:
                 ref_id=approval.id,
             )
 
+            # Also notify the user who requested the action (if different from creator)
+            requested_by = approval.details.get("requested_by") if approval.details else None
+            if requested_by:
+                try:
+                    requester_id = uuid.UUID(requested_by)
+                    if requester_id != agent.creator_id:
+                        await send_notification(
+                            db,
+                            user_id=requester_id,
+                            type="approval_resolved",
+                            title=f"[{agent.name}] {approval.action_type} — {status_label}",
+                            body=body_text,
+                            link=f"/agents/{agent.id}#activityLog",
+                            ref_id=approval.id,
+                        )
+                except (ValueError, AttributeError):
+                    pass  # Invalid UUID, skip
+
         await db.flush()
         return approval
 

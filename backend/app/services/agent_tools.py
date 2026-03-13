@@ -1072,7 +1072,7 @@ async def execute_tool(
                 _agent = _ar.scalar_one_or_none()
                 if _agent:
                     result_check = await autonomy_service.check_and_enforce(
-                        _adb, _agent, action_type, {"tool": tool_name, "args": str(arguments)[:200]}
+                        _adb, _agent, action_type, {"tool": tool_name, "args": str(arguments)[:200], "requested_by": str(user_id)}
                     )
                     await _adb.commit()
                     if not result_check.get("allowed"):
