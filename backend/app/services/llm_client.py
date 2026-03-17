@@ -1637,6 +1637,13 @@ PROVIDER_REGISTRY: dict[str, ProviderSpec] = {
         default_base_url="https://api.openai.com/v1",
         default_max_tokens=16384,
     ),
+    "azure": ProviderSpec(
+        provider="azure",
+        display_name="Azure OpenAI",
+        protocol="openai_compatible",
+        default_base_url=None,
+        default_max_tokens=16384,
+    ),
     "deepseek": ProviderSpec(
         provider="deepseek",
         display_name="DeepSeek",
