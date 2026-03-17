@@ -397,16 +397,12 @@ You have access to Atlassian tools via the Rovo MCP server. **Always call them v
             )
             triggers = result.scalars().all()
             if triggers:
-                lines = [
-                    "You have the following active triggers:",
-                    "",
-                    "| Name | Type | Config | Reason |",
-                    "|------|------|--------|--------|",
-                ]
+                lines = ["You have the following active triggers:"]
                 for t in triggers:
-                    config_str = str(t.config)[:60]
-                    reason_str = (t.reason or "")[:60]
-                    lines.append(f"| {t.name} | {t.type} | {config_str} | {reason_str} |")
+                    config_str = str(t.config)[:80]
+                    reason_str = (t.reason or "")[:500]
+                    ref_str = f" (focus: {t.focus_ref})" if t.focus_ref else ""
+                    lines.append(f"\n- **{t.name}** [{t.type}]{ref_str}\n  Config: `{config_str}`\n  Reason: {reason_str}")
                 parts.append("\n## Active Triggers\n" + "\n".join(lines))
     except Exception:
         pass
@@ -466,6 +462,24 @@ You have a dedicated workspace with this structure:
    - `list_triggers` — see your active triggers
    - When creating triggers related to a focus item, set `focus_ref` to the item's identifier
 
+   **⚠️ CRITICAL — Writing trigger `reason` (this is your future self's instruction manual):**
+   The `reason` field is the MOST IMPORTANT part of a trigger. When this trigger fires, you will wake up
+   with NO memory of the current conversation. The `reason` is the ONLY context you'll have about what
+   to do and how to do it. Write it as a detailed instruction to your future self:
+   - **Goal**: What is the objective? Who requested it? Who is the target?
+   - **Action steps**: Exactly what to do when this trigger fires (e.g. send a message, read a file, check status)
+   - **Edge cases**: What if the person says "wait 5 minutes"? What if they already completed the task?
+     What if they don't reply? What if they reply with something unexpected?
+   - **Follow-up**: After completing the action, what triggers should be created/cancelled next?
+   - **Context**: Any relevant details (message tone, escalation rules, requester preferences)
+   Example of a GOOD reason:
+   > 每1分钟给覃睿发飞书消息催他给电影票（Ray委托）。变换语气，不要重复。
+   > 发完消息后保持此 interval 触发器。同时确保 on_message 触发器 wait_qinrui_reply 仍在监听。
+   > 如果覃睿回复说"等X分钟"→ 取消此 interval，设 once 触发器X分钟后再催，并重设 on_message。
+   > 如果覃睿说已完成 → 取消所有相关触发器，通知 Ray，标记 focus 为完成。
+   Example of a BAD reason (too vague, will cause confusion when waking up):
+   > 催覃睿
+
 7. **Focus-Trigger Binding (MANDATORY):**
    - **Before creating any task-related trigger, you MUST first add a corresponding focus item in focus.md.**
      A trigger without a focus item is like an alarm with no purpose — don't do it.
@@ -486,7 +500,7 @@ You have a dedicated workspace with this structure:
    - Never send a message on behalf of someone without attributing the source.
    - **IMPORTANT: After sending a Feishu/Slack/Discord message and you need to wait for a reply, ALWAYS create an `on_message` trigger with `from_user_name` to auto-wake when they reply.**
      Example: After sending a feishu message to 张三, create:
-     `set_trigger(name="wait_zhangsan_reply", type="on_message", config={"from_user_name": "张三"}, reason="张三 replied, process their response and continue the task")`
+     `set_trigger(name="wait_zhangsan_reply", type="on_message", config={"from_user_name": "张三"}, reason="张三回复了关于XX任务的消息。处理回复内容：1) 如果已完成 → 取消 nag_zhangsan_xx_loop 触发器，通知委托人，更新 focus 为 [x]；2) 如果说'等X分钟' → 取消 interval，设 once 触发器X分钟后重新催促并重设 on_message + interval；3) 如果是其他回复 → 判断意图并继续跟进。")`
 
 10. **Reply in the same language the user uses.**
 
