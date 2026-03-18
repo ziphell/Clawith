@@ -37,8 +37,10 @@ class OrgSyncService:
             return None
         return setting.value
 
-    async def _get_app_token(self, app_id: str, app_secret: str) -> str:
-        """Get Feishu tenant_access_token (same as app_access_token for self-built apps)."""
+    async def _get_app_token(self, app_id: str, app_secret: str) -> tuple[str, dict]:
+        """Get Feishu tenant_access_token.
+        Returns (token_string, raw_response_dict).
+        """
         async with httpx.AsyncClient() as client:
             resp = await client.post(FEISHU_APP_TOKEN_URL, json={
                 "app_id": app_id,
@@ -47,7 +49,7 @@ class OrgSyncService:
             data = resp.json()
             print(f"[OrgSync] Token response: code={data.get('code')}, msg={data.get('msg')}")
             token = data.get("tenant_access_token") or data.get("app_access_token") or ""
-            return token
+            return token, data
 
     async def _fetch_departments(self, token: str, parent_id: str = "0") -> list[dict]:
         """Recursively fetch all departments from Feishu."""
@@ -177,9 +179,11 @@ class OrgSyncService:
                 return {"error": "缺少 App ID 或 App Secret"}
 
             try:
-                token = await self._get_app_token(app_id, app_secret)
+                token, token_resp = await self._get_app_token(app_id, app_secret)
                 if not token:
-                    return {"error": "获取飞书 token 失败"}
+                    feishu_code = token_resp.get("code", "?")
+                    feishu_msg = token_resp.get("msg", "unknown")
+                    return {"error": f"获取飞书 token 失败 (code={feishu_code}: {feishu_msg})"}
                 print(f"[OrgSync] Got token: {token[:20]}...")
             except Exception as e:
                 return {"error": f"连接飞书失败: {str(e)[:100]}"}
